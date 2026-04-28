@@ -1,0 +1,22 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  # Option B: app running on the host with ./gradlew bootRun
+  - job_name: 'wallet-local'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: ['host.docker.internal:8080']
+    scrape_interval: 5s
+
+  # Option A: app running as a Docker Compose service
+  - job_name: 'wallet-docker'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: ['wallet:8080']
+    scrape_interval: 5s
+
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']

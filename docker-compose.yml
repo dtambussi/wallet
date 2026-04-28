@@ -1,0 +1,111 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: wallet
+      POSTGRES_PASSWORD: wallet
+      POSTGRES_DB: wallet
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U wallet -d wallet"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+
+  wallet:
+    build: .
+    ports:
+      - "8080:8080"
+    mem_limit: 1g
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/wallet
+      SPRING_DATASOURCE_USERNAME: wallet
+      SPRING_DATASOURCE_PASSWORD: wallet
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  test:
+    image: gradle:8-jdk21
+    working_dir: /workspace
+    volumes:
+      - .:/workspace
+      - /var/run/docker.sock:/var/run/docker.sock
+      - gradle-cache:/home/gradle/.gradle
+    # Host daemon via socket: map published ports via host.docker.internal (not 172.17.0.1 — unreachable from inside this container → Flyway “connection refused”). Ryuk WARN on Desktop: TESTCONTAINERS_RYUK_DISABLED.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      TESTCONTAINERS_RYUK_DISABLED: "true"
+      TESTCONTAINERS_HOST_OVERRIDE: host.docker.internal
+    # cleanTest: persisted gradle-cache makes :test UP-TO-DATE otherwise → quick “SUCCESS” with no PASSED lines. --no-daemon: clearer logs in ephemeral runs.
+    command: gradle cleanTest test --no-daemon
+    profiles: ["test"]
+
+  live-tests:
+    image: python:3.12-slim
+    working_dir: /workspace
+    volumes:
+      - ./live-tests:/workspace
+    environment:
+      WALLET_URL: http://wallet:8080
+    depends_on:
+      wallet:
+        condition: service_started
+    command: python run.py
+    profiles: ["live-tests"]
+
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+
+
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - ./docker/grafana/provisioning:/etc/grafana/provisioning
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+
+  loki:
+    image: grafana/loki:latest
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./docker/loki/loki-config.yml:/etc/loki/local-config.yaml
+      - loki_data:/loki
+    command: -config.file=/etc/loki/local-config.yaml
+
+  promtail:
+    image: grafana/promtail:latest
+    volumes:
+      - ./docker/promtail/promtail-config.yml:/etc/promtail/config.yml
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    command: -config.file=/etc/promtail/config.yml
+    depends_on:
+      - loki
+
+volumes:
+  postgres_data:
+  gradle-cache:
+  prometheus_data:
+  grafana_data:
+  loki_data:

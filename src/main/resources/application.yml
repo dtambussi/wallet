@@ -1,0 +1,60 @@
+logging:
+  pattern:
+    console: "%d{HH:mm:ss.SSS} %5p [%X{requestId:-}] %logger{36} - %m%n"
+
+spring:
+  application.name: wallet
+  threads:
+    virtual:
+      enabled: true
+  datasource:
+    url: jdbc:postgresql://localhost:5433/wallet
+    username: wallet
+    password: wallet
+    hikari:
+      # Conservative default for docker-compose load tests: enough concurrency without overwhelming one Postgres.
+      maximum-pool-size: 16
+      minimum-idle: 4
+      connection-timeout: 2000
+      idle-timeout: 300000
+      max-lifetime: 1800000
+  task:
+    scheduling:
+      pool:
+        size: 2
+  flyway:
+    enabled: true
+
+server:
+  port: 8080
+
+management:
+  endpoints.web.exposure.include: health,info,metrics,prometheus
+
+wallet:
+  fx:
+    quote-ttl-seconds: 30
+    stale-rate-ttl-seconds: 0  # bootstrap/fallback for runtime_config['wallet.fx.stale-rate-ttl-seconds']
+  payout:
+    max-attempts: 3
+    worker-interval-ms: 5000
+    worker-initial-delay-ms: 1000
+    backoff-base-seconds: 10   # delay after attempt n = min(base * 2^n, 300s)
+
+springdoc:
+  api-docs.path: /api-docs
+  swagger-ui.path: /swagger-ui
+
+---
+spring:
+  config.activate.on-profile: local
+  datasource:
+    # Local dev mode: run WalletApplication from IDE and point to Postgres started by docker-compose.
+    url: jdbc:postgresql://localhost:5433/wallet
+
+---
+spring:
+  config.activate.on-profile: docker
+  datasource:
+    # Container-to-container networking when API itself runs inside docker-compose.
+    url: jdbc:postgresql://postgres:5432/wallet

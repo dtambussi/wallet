@@ -1,0 +1,150 @@
+{
+  "uid": "wallet-ops",
+  "title": "Wallet Operations",
+  "tags": ["wallet"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "10s",
+  "time": { "from": "now-15m", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Money Flow — Success Ratio (alert threshold: 98%)",
+      "description": "Fraction of money-flow operations that succeed. Excludes requests intentionally rejected by an operator killswitch (outcome=disabled). Page if this drops below 0.98.",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "expr": "sum(rate(wallet_money_flow_total{outcome=\"success\"}[5m])) / sum(rate(wallet_money_flow_total{outcome!=\"disabled\"}[5m]))",
+          "legendFormat": "success ratio",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 0.95 },
+              { "color": "green", "value": 0.98 }
+            ]
+          },
+          "custom": {
+            "thresholdsStyle": { "mode": "line" }
+          }
+        }
+      },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } }
+    },
+    {
+      "id": 2,
+      "title": "Money Flow — Rate by Operation & Outcome",
+      "description": "Operations per second broken down by operation (deposit, withdrawal, transfer, fx_exchange) and outcome. Use to see which operation is contributing to a success-ratio drop.",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "expr": "sum(rate(wallet_money_flow_total[5m])) by (operation, outcome)",
+          "legendFormat": "{{operation}} / {{outcome}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "reqps" }
+      },
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } }
+    },
+    {
+      "id": 3,
+      "title": "Internal Errors — Rate by Operation (alert threshold: 2%)",
+      "description": "Unexpected platform failures (DB errors, OOM, bugs) — not business rejections and not provider failures. Check the operation label to narrow scope: payout_worker points to the outbox worker; HTTP operations point to the request path.",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "x": 0, "y": 8, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "expr": "sum(rate(wallet_internal_errors_total[5m])) by (operation)",
+          "legendFormat": "{{operation}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 0.01 }
+            ]
+          },
+          "custom": {
+            "thresholdsStyle": { "mode": "line" }
+          }
+        }
+      },
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } }
+    },
+    {
+      "id": 4,
+      "title": "Provider Health — Degradation Ratio by Provider (alert threshold: 5%)",
+      "description": "Fraction of provider calls that resulted in degraded outcomes. Provider label: fx = FX rate provider (cross-currency operations); payments = payout/withdrawal provider. On alert: fx → check wallet.fx.stale-rate-ttl-seconds in runtime_config; payments → check payout_outbox retries and reversal entries.",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "x": 12, "y": 8, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "expr": "sum(rate(wallet_provider_health_total{outcome=~\"degraded|degraded_served_stale\"}[5m])) by (provider) / sum(rate(wallet_provider_health_total{outcome=\"request\"}[5m])) by (provider)",
+          "legendFormat": "{{provider}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.02 },
+              { "color": "red", "value": 0.05 }
+            ]
+          },
+          "custom": {
+            "thresholdsStyle": { "mode": "line" }
+          }
+        }
+      },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } }
+    },
+    {
+      "id": 5,
+      "title": "Wallet Application Logs",
+      "description": "Live logs from the wallet service. Filter by [FAULT INJECTION] to see operator killswitch events. Filter by ERROR or WARN to triage internal errors.",
+      "type": "logs",
+      "datasource": { "type": "loki", "uid": "loki" },
+      "gridPos": { "x": 0, "y": 16, "w": 24, "h": 10 },
+      "targets": [
+        {
+          "expr": "{service=\"wallet\"}",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "dedupStrategy": "none",
+        "showLabels": false,
+        "showTime": true,
+        "sortOrder": "Descending",
+        "wrapLogMessage": true
+      }
+    }
+  ]
+}

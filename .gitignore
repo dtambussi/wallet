@@ -1,0 +1,49 @@
+# Gradle
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+
+# IDE / Editors
+.idea/
+*.iml
+*.ipr
+*.iws
+.project
+.classpath
+.settings/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Runtime
+*.pid
+*.seed
+
+# Environment
+.env
+.env.local
+
+# Docker volumes (if local)
+postgres_data/
+
+# Test outputs
+test-results/
+*.hprof
+
+# Local overrides
+*.local
+application-local.yml
+docker-compose.override.yml
+
+# Temporary files
+*.tmp
+*.bak
+*~
